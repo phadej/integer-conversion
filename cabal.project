@@ -1,0 +1,12 @@
+packages: .
+tests: True
+benchmarks: True
+
+package integer-conversion
+  ghc-options: -Wall
+
+-- source-repository-package
+--   type:     git
+--   location: git@github.com:phadej/libperf.git
+--   tag:      e99e7a997366afe815a6edbeef94cc02c307bf28
+--   subdir:   . tasty-perfbench
