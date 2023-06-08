@@ -11,9 +11,14 @@
 -- takes 1.5 seconds, and 'textToInteger' just 26 milliseconds on my machine.
 -- Difference is already noticeable around 100-200 digits.
 --
+-- In particular 'read' is correct (i.e. faster) than @List.foldl'@ (better complexity),
+-- 'stringToInteger' is a bit faster than 'read' (same complexity, lower coeffcient).
+--
 module Data.Integer.Conversion (
     textToInteger,
     byteStringToInteger,
+    stringToInteger,
+    stringToIntegerWithLen,
 ) where
 
 import Control.Monad.ST     (ST, runST)
@@ -24,6 +29,7 @@ import Data.Text.Internal   (Text (..))
 import Data.Word            (Word8)
 
 import qualified Data.ByteString as BS
+import qualified Data.List       as L
 import qualified Data.Text       as T
 
 -- $setup
@@ -131,6 +137,71 @@ indexBS bs i = fromWord8 (BS.index bs i)
 fromWord8 :: Word8 -> Integer
 fromWord8 w = toInteger (fromIntegral w - 48 :: Int)
 {-# INLINE fromWord8 #-}
+
+-------------------------------------------------------------------------------
+-- String
+-------------------------------------------------------------------------------
+
+-- | Convert 'String' to 'Integer'.
+--
+-- Semantically same as @List.foldl' (\acc c -> acc * 10 + toInteger c - 48) 0@,
+-- but this is more efficient.
+--
+-- >>> stringToInteger "123456789"
+-- 123456789
+--
+-- For non-decimal inputs some nonsense is calculated
+--
+-- >>> stringToInteger "foobar"
+-- 6098556
+--
+stringToInteger :: String -> Integer
+stringToInteger str = stringToIntegerWithLen str (length str)
+
+-- | Convert 'String' to 'Integer' when you know the length beforehand.
+--
+-- >>> stringToIntegerWithLen "123" 3
+-- 123
+--
+-- If the length is wrong, you may get wrong results.
+-- (Simple algorithm is used for short strings).
+--
+-- >>> stringToIntegerWithLen (replicate 40 '0' ++ "123") 45
+-- 12300
+--
+-- >>> stringToIntegerWithLen (replicate 40 '0' ++ "123") 44
+-- 1200
+--
+-- >>> stringToIntegerWithLen (replicate 40 '0' ++ "123") 42
+-- 12
+--
+stringToIntegerWithLen :: String -> Int -> Integer
+stringToIntegerWithLen str len
+    | len >= 40    = complexStringToInteger len str
+    | otherwise    = simpleStringToInteger str
+
+simpleStringToInteger :: String -> Integer
+simpleStringToInteger = L.foldl' step 0 where
+  step a b = a * 10 + fromChar b
+
+complexStringToInteger :: Int -> String -> Integer
+complexStringToInteger len str = runST $ do
+    arr <- newArray len' integer0
+    if even len
+    then loop arr str     0
+    else case str of
+        []   -> return integer0 -- cannot happen, length is odd! but could, via stringToIntegerWithLen.
+        a:bs -> do
+            writeArray arr 0 $ fromChar a
+            loop arr bs 1
+  where
+    len' = (len + 1) `div` 2
+
+    loop :: MutableArray s Integer -> String -> Int -> ST s Integer
+    loop !arr (a:b:cs) !o | o < len' = do
+        writeArray arr o $! fromChar a * 10 + fromChar b
+        loop arr cs (o + 1)
+    loop arr _ _ = algorithm arr len' 100
 
 -------------------------------------------------------------------------------
 -- Algorithm
