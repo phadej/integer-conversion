@@ -9,37 +9,59 @@
 module Alternative (
     byteStringToInteger,
     textToInteger,
+    stringToInteger,
 ) where
 
 import Data.Char (ord)
+import Data.Word (Word8)
 
-import qualified Data.Text as T
 import qualified Data.ByteString as BS
+import qualified Data.List       as L
+import qualified Data.Text       as T
 
 byteStringToInteger :: BS.ByteString -> Integer
 byteStringToInteger bs
     -- here (and similarly in 'textToInteger') it could make sense
     -- to do first loop directly on 'ByteString' (or 'Text'),
     -- but as this is already a slow path, we opt rather for a simpler implementation.
-    | l > 40    = valInteger' 10 l [ fromIntegral w - 48 | w <- BS.unpack bs ]
+    | l > 40    = valInteger' 10 l [ fromWord8 w | w <- BS.unpack bs ]
     | otherwise = byteStringToIntegerSimple bs
   where
     !l = BS.length bs
 
 byteStringToIntegerSimple :: BS.ByteString -> Integer
 byteStringToIntegerSimple = BS.foldl' step 0 where
-  step a b = a * 10 + fromIntegral b - 48
+  step a b = a * 10 + fromWord8 b
 
 textToInteger :: T.Text -> Integer
 textToInteger bs
-    | l > 40    = valInteger' 10 l [ fromIntegral (ord w - 48) | w <- T.unpack bs ]
+    | l > 40    = valInteger' 10 l [ fromChar w | w <- T.unpack bs ]
     | otherwise = textToIntegerSimple bs
   where
     !l = T.length bs
 
 textToIntegerSimple :: T.Text -> Integer
 textToIntegerSimple = T.foldl' step 0 where
-  step a b = a * 10 + fromIntegral (ord b - 48) -- 48 = '0'
+  step a b = a * 10 + fromChar b
+
+stringToInteger :: String -> Integer
+stringToInteger s
+    | l > 40    = valInteger' 10 l (map fromChar s)
+    | otherwise = stringToIntegerSimple s
+  where
+    !l = length s
+
+stringToIntegerSimple :: String -> Integer
+stringToIntegerSimple = L.foldl' step 0 where
+  step a b = a * 10 + fromChar b
+
+fromChar :: Char -> Integer
+fromChar c = toInteger (ord c - 48 :: Int)
+{-# INLINE fromChar #-}
+
+fromWord8 :: Word8 -> Integer
+fromWord8 w = toInteger (fromIntegral w - 48 :: Int)
+{-# INLINE fromWord8 #-}
 
 -- | A sub-quadratic algorithm.
 --
