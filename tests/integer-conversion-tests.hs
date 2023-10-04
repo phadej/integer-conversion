@@ -1,9 +1,9 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Main (main) where
 
-import Test.QuickCheck           ((===))
-import Test.QuickCheck.Instances ()
-import Test.Tasty                (defaultMain, testGroup)
-import Test.Tasty.QuickCheck     (testProperty, label)
+import Test.QuickCheck       ((===))
+import Test.Tasty            (defaultMain, testGroup)
+import Test.Tasty.QuickCheck (Arbitrary (..), label, testProperty)
 
 import qualified Data.ByteString as BS
 import qualified Data.Text       as T
@@ -32,3 +32,16 @@ main = defaultMain $ testGroup "integer-conversion"
     labelT t = label (if T.length t  >= 40 then "long" else "short")
     labelB b = label (if BS.length b >= 40 then "long" else "short")
     labelS s = label (if length s    >= 40 then "long" else "short")
+
+-------------------------------------------------------------------------------
+-- Orphans
+-------------------------------------------------------------------------------
+
+-- we could use quickcheck-instances,
+-- but by defining these instances here we make adopting newer GHC smoother.
+
+instance Arbitrary T.Text where
+    arbitrary = fmap T.pack arbitrary
+
+instance Arbitrary BS.ByteString where
+    arbitrary = fmap BS.pack arbitrary
