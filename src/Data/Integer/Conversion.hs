@@ -23,7 +23,7 @@ module Data.Integer.Conversion (
     stringToInteger,
     stringToIntegerWithLen,
     -- * From Integer
-    stringFromInteger,
+    showsFromInteger,
     bytestringBuilderFromInteger,
     textBuilderFromInteger,
 ) where
@@ -408,19 +408,19 @@ integer0 = 0
 -------------------------------------------------------------------------------
 -- String From
 -------------------------------------------------------------------------------
---
+
 -- | Convert 'Integer' to a decimal 'String'.
 --
 -- The naive approach is to print one digit at a time using 'quotRem',
 -- but this is more efficient.
 --
--- >>> stringFromInteger 123456789
--- 123456789
+-- >>> showsFromInteger 123456789 ""
+-- "123456789"
 --
 -- @since 0.1.2
 --
-stringFromInteger :: Integer -> String
-stringFromInteger = show
+showsFromInteger :: Integer -> ShowS
+showsFromInteger = shows
 
 -------------------------------------------------------------------------------
 -- ByteString From
