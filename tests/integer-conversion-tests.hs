@@ -7,7 +7,11 @@ import Test.Tasty            (defaultMain, testGroup)
 import Test.Tasty.QuickCheck (Arbitrary (..), counterexample, label, testProperty)
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy.Char8 as LBS8
+import qualified Data.ByteString.Builder as BS.B
 import qualified Data.Text       as T
+import qualified Data.Text.Lazy       as LT
+import qualified Data.Text.Lazy.Builder       as T.B
 
 import Data.Integer.Conversion
 
@@ -16,17 +20,31 @@ import qualified Naive
 
 main :: IO ()
 main = defaultMain $ testGroup "integer-conversion"
-    [ testGroup "text"
-        [ testProperty "naive" $ \t' -> let t = nts t' in labelT t $ textToInteger t === Naive.textToInteger t
-        , testProperty "alt"   $ \t' -> let t = nts t' in labelT t $ textToInteger t === Alternative.textToInteger t
+    [ testGroup "read"
+        [ testGroup "text"
+            [ testProperty "naive" $ \t' -> let t = nts t' in labelT t $ textToInteger t === Naive.textToInteger t
+            , testProperty "alt"   $ \t' -> let t = nts t' in labelT t $ textToInteger t === Alternative.textToInteger t
+            ]
+        , testGroup "bytestring"
+            [ testProperty "naive" $ \bs' -> let bs = nbs bs' in labelB bs $ counterexample (show bs) $ byteStringToInteger bs === Naive.byteStringToInteger bs
+            , testProperty "alt"   $ \bs' -> let bs = nbs bs' in labelB bs $ counterexample (show bs) $ byteStringToInteger bs === Alternative.byteStringToInteger bs
+            ]
+        , testGroup "string"
+            [ testProperty "naive" $ \s' -> let s = filter (<'\xFF') s' in labelS s $ stringToInteger s === Naive.stringToInteger s
+            , testProperty "alt"   $ \s' -> let s = filter (<'\xFF') s' in labelS s $ stringToInteger s === Alternative.stringToInteger s
+            ]
         ]
-    , testGroup "bytestring"
-        [ testProperty "naive" $ \bs' -> let bs = nbs bs' in labelB bs $ counterexample (show bs) $ byteStringToInteger bs === Naive.byteStringToInteger bs
-        , testProperty "alt"   $ \bs' -> let bs = nbs bs' in labelB bs $ counterexample (show bs) $ byteStringToInteger bs === Alternative.byteStringToInteger bs
-        ]
-    , testGroup "string"
-        [ testProperty "naive" $ \s' -> let s = filter (<'\xFF') s' in labelS s $ stringToInteger s === Naive.stringToInteger s
-        , testProperty "alt"   $ \s' -> let s = filter (<'\xFF') s' in labelS s $ stringToInteger s === Alternative.stringToInteger s
+    , testGroup "show"
+        [ testGroup "string"
+            [ testProperty "naive" $ \i -> stringFromInteger i === Naive.stringFromInteger i
+            , testProperty "show"  $ \i -> stringFromInteger i === show i
+            ]
+        , testGroup "bytestring"
+            [ testProperty "show" $ \i -> BS.B.toLazyByteString (bytestringBuilderFromInteger i) === LBS8.pack (show i)
+            ]
+        , testGroup "text"
+            [ testProperty "show" $ \i -> T.B.toLazyText (textBuilderFromInteger i) === LT.pack (show i)
+            ]
         ]
     ]
   where
