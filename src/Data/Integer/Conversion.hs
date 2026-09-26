@@ -17,10 +17,15 @@
 -- 'stringToInteger' is a bit faster than 'read' (same complexity, lower coeffcient).
 --
 module Data.Integer.Conversion (
+    -- * To Integer
     textToInteger,
     byteStringToInteger,
     stringToInteger,
     stringToIntegerWithLen,
+    -- * From Integer
+    stringFromInteger,
+    bytestringBuilderFromInteger,
+    textBuilderFromInteger,
 ) where
 
 import Control.Monad.ST     (ST, runST)
@@ -31,10 +36,13 @@ import Data.Primitive.Array (MutableArray, newArray, readArray, writeArray)
 import Data.Text.Internal   (Text (..))
 import Data.Word            (Word8)
 
-import qualified Data.ByteString as BS
-import qualified Data.List       as L
-import qualified Data.Text       as T
-import qualified Data.Text.Array as A
+import qualified Data.ByteString            as BS
+import qualified Data.ByteString.Builder    as BS.B
+import qualified Data.List                  as L
+import qualified Data.Text                  as T
+import qualified Data.Text.Array            as A
+import qualified Data.Text.Lazy.Builder     as T.B
+import qualified Data.Text.Lazy.Builder.Int as T.B
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -46,7 +54,7 @@ pattern Base :: Integer
 pattern Base = 1_000_000_000_000_000_000
 
 -------------------------------------------------------------------------------
--- Text
+-- Text To
 -------------------------------------------------------------------------------
 
 -- | Convert 'Text' to 'Integer'.
@@ -128,7 +136,7 @@ fromChar' c = fromIntegral (ord c - 48 :: Int)
 {-# INLINE fromChar' #-}
 
 -------------------------------------------------------------------------------
--- ByteString
+-- ByteString To
 -------------------------------------------------------------------------------
 
 -- | Convert 'ByteString' to 'Integer'.
@@ -209,7 +217,7 @@ fromWord8 w = fromIntegral w - 48
 {-# INLINE fromWord8 #-}
 
 -------------------------------------------------------------------------------
--- String
+-- String To
 -------------------------------------------------------------------------------
 
 -- | Convert 'String' to 'Integer'.
@@ -396,3 +404,42 @@ finishAlgorithmL base = go 0
 
 integer0 :: Integer
 integer0 = 0
+
+-------------------------------------------------------------------------------
+-- String From
+-------------------------------------------------------------------------------
+--
+-- | Convert 'Integer' to a decimal 'String'.
+--
+-- The naive approach is to print one digit at a time using 'quotRem',
+-- but this is more efficient.
+--
+-- >>> stringFromInteger 123456789
+-- 123456789
+--
+-- @since 0.1.2
+--
+stringFromInteger :: Integer -> String
+stringFromInteger = show
+
+-------------------------------------------------------------------------------
+-- ByteString From
+-------------------------------------------------------------------------------
+
+-- |
+--
+-- @since 0.1.2
+--
+bytestringBuilderFromInteger :: Integer -> BS.B.Builder
+bytestringBuilderFromInteger = BS.B.integerDec
+
+-------------------------------------------------------------------------------
+-- Text From
+-------------------------------------------------------------------------------
+
+-- |
+--
+-- @since 0.1.2
+--
+textBuilderFromInteger :: Integer -> T.B.Builder
+textBuilderFromInteger = T.B.decimal
