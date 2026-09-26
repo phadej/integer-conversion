@@ -1,7 +1,6 @@
 cabal-version:      2.2
 name:               integer-conversion
-version:            0.1.1
-x-revision:         2
+version:            0.1.2
 synopsis:           Conversion from strings to Integer
 category:           Data
 description:
@@ -57,7 +56,7 @@ test-suite integer-conversion-tests
 
   -- test dependencies
   build-depends:
-    , QuickCheck        ^>=2.14.3 || ^>=2.15 || ^>=2.16.0.0 || ^>=2.17.1.0
+    , QuickCheck        ^>=2.14.3 || ^>=2.15 || ^>=2.16.0.0 || ^>=2.17.1.0 || ^>=2.19.0.0
     , tasty             ^>=1.4.3  || ^>=1.5
     , tasty-quickcheck  ^>=0.10.2 || ^>=0.11
 

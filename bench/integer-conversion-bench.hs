@@ -19,7 +19,7 @@ main = defaultMain
         , bgroup "proper" $ seriesT textToInteger
         ]
 
-    , bgroup "bs"
+    , bgroup "bytestring"
         [ bgroup "naive"  $ seriesB Naive.byteStringToInteger
         , bgroup "alt"    $ seriesB Alternative.byteStringToInteger
         , bgroup "proper" $ seriesB byteStringToInteger

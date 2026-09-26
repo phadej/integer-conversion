@@ -1,4 +1,6 @@
 {-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE NumericUnderscores  #-}
+{-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -ddump-simpl -dsuppress-all -ddump-to-file #-}
 -- | The naive left fold to convert digits to integer is quadratic
@@ -24,6 +26,7 @@ module Data.Integer.Conversion (
 import Control.Monad.ST     (ST, runST)
 import Data.ByteString      (ByteString)
 import Data.Char            (ord)
+import Data.Int             (Int64)
 import Data.Primitive.Array (MutableArray, newArray, readArray, writeArray)
 import Data.Text.Internal   (Text (..))
 import Data.Word            (Word8)
@@ -31,9 +34,16 @@ import Data.Word            (Word8)
 import qualified Data.ByteString as BS
 import qualified Data.List       as L
 import qualified Data.Text       as T
+import qualified Data.Text.Array as A
 
 -- $setup
 -- >>> :set -XOverloadedStrings
+
+pattern Digits :: Int
+pattern Digits = 18
+
+pattern Base :: Integer
+pattern Base = 1_000_000_000_000_000_000
 
 -------------------------------------------------------------------------------
 -- Text
@@ -61,27 +71,61 @@ textToInteger t@(Text _arr _off len)
 simpleTextToInteger :: Text -> Integer
 simpleTextToInteger = T.foldl' (\acc c -> acc * 10 + fromChar c) 0
 
--- Text doesn't have cheap length:
---
--- * We can (over)estimate the size of the needed buffer by the length of text's underlying bytearray.
--- * As we don't know whether the length is even or odd, we cannot do the first pass,
---   so we just copy the contents of given Text as is first.
---
 complexTextToInteger :: Text -> Integer
-complexTextToInteger t0@(Text _ _ len) = runST $ do
-    arr <- newArray len integer0 -- we overestimate the size here
-    loop arr t0 0
+complexTextToInteger (Text input off len) = runST $ do
+    arr <- newArray len' 0
+
+    if r == 0
+    then go arr 0 0 0 0
+    else goPfx arr 0 0 0
   where
-    loop :: MutableArray s Integer -> Text -> Int -> ST s Integer
-    loop !arr !t !o = case T.uncons t of
-        Just (c, t') -> do
-            writeArray arr o $! fromChar c
-            loop arr t' (o + 1)
-        Nothing -> algorithm arr o 10
+    (q, r) = quotRem len Digits
+    len' = if r > 0 then q + 1 else q
+
+    indexArray :: Int -> Int64
+    indexArray i = fromIntegral (A.unsafeIndex input (off + i) - 48)
+
+    goPfx :: MutableArray s Integer -> Int -> Int -> Int64 -> ST s Integer
+    goPfx !arr !i !n !acc
+          -- this cannot happen as r is less than or equal to len.
+--        | i >= len
+--        = do
+--            return integer0
+--            writeArray arr 0 (toInteger acc)
+--            algorithm arr len' Base
+
+        | n >= r
+        = do
+            writeArray arr 0 (toInteger acc)
+            go arr i 1 0 0
+
+        | otherwise
+        = do
+            goPfx arr (i + 1) (n + 1) (acc * 10 + indexArray i)
+
+    go :: MutableArray s Integer -> Int -> Int -> Int -> Int64 -> ST s Integer
+    go !arr !i !o !n !acc
+        | i >= len
+        = do
+            writeArray arr o (toInteger acc)
+            algorithm arr len' Base
+
+        | n >= Digits
+        = do
+            writeArray arr o (toInteger acc)
+            go arr i (o + 1) 0 0
+
+        | otherwise
+        = do
+            go arr (i + 1) o (n + 1) (acc * 10 + indexArray i)
 
 fromChar :: Char -> Integer
 fromChar c = toInteger (ord c - 48 :: Int)
 {-# INLINE fromChar #-}
+
+fromChar' :: Char -> Int64
+fromChar' c = fromIntegral (ord c - 48 :: Int)
+{-# INLINE fromChar' #-}
 
 -------------------------------------------------------------------------------
 -- ByteString
@@ -109,33 +153,59 @@ byteStringToInteger bs
     !len = BS.length bs
 
 simpleByteStringToInteger :: BS.ByteString -> Integer
-simpleByteStringToInteger = BS.foldl' (\acc w -> acc * 10 + fromWord8 w) 0
+simpleByteStringToInteger = BS.foldl' (\acc w -> acc * 10 + toInteger (fromWord8 w)) 0
 
 complexByteStringToInteger :: Int -> BS.ByteString -> Integer
 complexByteStringToInteger len bs = runST $ do
     arr <- newArray len' 0
 
-    if even len
-    then do
-        loop arr 0 0
-    else do
-        writeArray arr 0 $! indexBS bs 0
-        loop arr 1 1
+    if r == 0
+    then go arr 0 0 0 0
+    else goPfx arr 0 0 0
   where
-    len' = (len + 1) `div` 2
+    (q, r) = quotRem len Digits
+    len' = if r > 0 then q + 1 else q
 
-    loop :: MutableArray s Integer -> Int -> Int -> ST s Integer
-    loop !arr !i !o | i < len = do
-        writeArray arr o $! indexBS bs i * 10 + indexBS bs (i + 1)
-        loop arr (i + 2) (o + 1)
-    loop arr _ _ = algorithm arr len' 100
+    goPfx :: MutableArray s Integer -> Int -> Int -> Int64 -> ST s Integer
+    goPfx !arr !i !n !acc
+          -- this cannot happen as r is less than or equal to len.
+--        | i >= len
+--        = do
+--            return integer0
+--            writeArray arr 0 (toInteger acc)
+--            algorithm arr len' Base
 
-indexBS :: BS.ByteString -> Int -> Integer
-indexBS bs i = fromWord8 (BS.index bs i)
+        | n >= r
+        = do
+            writeArray arr 0 (toInteger acc)
+            go arr i 1 0 0
+
+        | otherwise
+        = do
+            goPfx arr (i + 1) (n + 1) (acc * 10 + indexBS bs i)
+
+    go :: MutableArray s Integer -> Int -> Int -> Int -> Int64 -> ST s Integer
+    go !arr !i !o !n !acc
+        | i >= len
+        = do
+            writeArray arr o (toInteger acc)
+            algorithm arr len' Base
+
+        | n >= Digits
+        = do
+            writeArray arr o (toInteger acc)
+            go arr i (o + 1) 0 0
+
+        | otherwise
+        = do
+            go arr (i + 1) o (n + 1) (acc * 10 + indexBS bs i)
+
+indexBS :: BS.ByteString -> Int -> Int64
+indexBS bs i = fromIntegral (fromWord8 (BS.index bs i))
 {-# INLINE indexBS #-}
 
-fromWord8 :: Word8 -> Integer
-fromWord8 w = toInteger (fromIntegral w - 48 :: Int)
+fromWord8 :: Word8 -> Int
+fromWord8 w = fromIntegral w - 48
 {-# INLINE fromWord8 #-}
 
 -------------------------------------------------------------------------------
@@ -164,13 +234,14 @@ stringToInteger str = stringToIntegerWithLen str (length str)
 -- 123
 --
 -- If the length is wrong, you may get wrong results.
--- (Simple algorithm is used for short strings).
+-- (Simple algorithm is used for short strings which ignores the length
+-- argument).
 --
 -- >>> stringToIntegerWithLen (replicate 40 '0' ++ "123") 45
--- 12300
+-- 123
 --
 -- >>> stringToIntegerWithLen (replicate 40 '0' ++ "123") 44
--- 1200
+-- 123
 --
 -- >>> stringToIntegerWithLen (replicate 40 '0' ++ "123") 42
 -- 12
@@ -184,24 +255,42 @@ simpleStringToInteger :: String -> Integer
 simpleStringToInteger = L.foldl' step 0 where
   step a b = a * 10 + fromChar b
 
+-- See https://github.com/ghc/ghc/commit/a5a4c25626e11e8b4be6687a9af8cfc85a77e9ba
+--
+-- This is further improved algorithm:
+--
+-- - In the first iteration we group up to 18 digits (such numbers fit into 64 bit Int so multiplication stays constant-time operation).
+--   This doesn't improve algorithmic complexity, but it makes algorithm run faster.
+-- - And then we begin to pair adjacent digits
+-- - We also use MutableArray to avoid allocating list cons cells.
+--
 complexStringToInteger :: Int -> String -> Integer
 complexStringToInteger len str = runST $ do
     arr <- newArray len' integer0
-    if even len
-    then loop arr str     0
-    else case str of
-        []   -> return integer0 -- cannot happen, length is odd! but could, via stringToIntegerWithLen.
-        a:bs -> do
-            writeArray arr 0 $ fromChar a
-            loop arr bs 1
+    if r == 0
+    then go arr 0 0 0 str
+    else goPfx arr 0 0 str
   where
-    len' = (len + 1) `div` 2
+    (q, r) = quotRem len Digits
+    len' = if r > 0 then q + 1 else q
 
-    loop :: MutableArray s Integer -> String -> Int -> ST s Integer
-    loop !arr (a:b:cs) !o | o < len' = do
-        writeArray arr o $! fromChar a * 10 + fromChar b
-        loop arr cs (o + 1)
-    loop arr _ _ = algorithm arr len' 100
+    goPfx :: MutableArray s Integer -> Int -> Int64 -> String -> ST s Integer
+    goPfx !_arr !_n !_acc [] = return integer0 -- this shouldn't happen, but may if len is wrong.
+    goPfx !arr !n !acc input | n >= r = do
+        writeArray arr 0 (toInteger acc)
+        go arr 1 0 0 input
+    goPfx !arr !n !acc (d:ds) =
+        goPfx arr (n + 1) (acc * 10 + fromChar' d) ds
+
+    go :: MutableArray s Integer -> Int -> Int -> Int64 -> String -> ST s Integer
+    go !arr !o !_n !acc [] = do
+        writeArray arr o (toInteger acc)
+        algorithm arr len' Base
+    go !arr !o !n !acc input | n >= Digits = do
+        writeArray arr o (toInteger acc)
+        go arr (o + 1) 0 0 input
+    go !arr !o !n !acc (d:ds) = do
+        go arr o (n + 1) (acc * 10 + fromChar' d) ds
 
 -------------------------------------------------------------------------------
 -- Algorithm
