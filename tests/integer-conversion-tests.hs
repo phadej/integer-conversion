@@ -6,12 +6,12 @@ import Test.QuickCheck       ((===))
 import Test.Tasty            (defaultMain, testGroup)
 import Test.Tasty.QuickCheck (Arbitrary (..), counterexample, label, testProperty)
 
-import qualified Data.ByteString as BS
+import qualified Data.ByteString            as BS
+import qualified Data.ByteString.Builder    as BS.B
 import qualified Data.ByteString.Lazy.Char8 as LBS8
-import qualified Data.ByteString.Builder as BS.B
-import qualified Data.Text       as T
-import qualified Data.Text.Lazy       as LT
-import qualified Data.Text.Lazy.Builder       as T.B
+import qualified Data.Text                  as T
+import qualified Data.Text.Lazy             as LT
+import qualified Data.Text.Lazy.Builder     as T.B
 
 import Data.Integer.Conversion
 
@@ -25,7 +25,7 @@ main = defaultMain $ testGroup "integer-conversion"
             [ testProperty "naive" $ \t' -> let t = nts t' in labelT t $ textToInteger t === Naive.textToInteger t
             , testProperty "alt"   $ \t' -> let t = nts t' in labelT t $ textToInteger t === Alternative.textToInteger t
             ]
-        , testGroup "bytestring"
+        , testGroup "bs"
             [ testProperty "naive" $ \bs' -> let bs = nbs bs' in labelB bs $ counterexample (show bs) $ byteStringToInteger bs === Naive.byteStringToInteger bs
             , testProperty "alt"   $ \bs' -> let bs = nbs bs' in labelB bs $ counterexample (show bs) $ byteStringToInteger bs === Alternative.byteStringToInteger bs
             ]
@@ -36,14 +36,14 @@ main = defaultMain $ testGroup "integer-conversion"
         ]
     , testGroup "show"
         [ testGroup "string"
-            [ testProperty "naive" $ \i -> stringFromInteger i === Naive.stringFromInteger i
-            , testProperty "show"  $ \i -> stringFromInteger i === show i
+            [ testProperty "naive" $ \i -> showsFromInteger i "" === Naive.stringFromInteger i
+            , testProperty "base"  $ \i -> showsFromInteger i "" === show i
             ]
-        , testGroup "bytestring"
-            [ testProperty "show" $ \i -> BS.B.toLazyByteString (bytestringBuilderFromInteger i) === LBS8.pack (show i)
+        , testGroup "bs"
+            [ testProperty "base" $ \i -> BS.B.toLazyByteString (bytestringBuilderFromInteger i) === LBS8.pack (show i)
             ]
         , testGroup "text"
-            [ testProperty "show" $ \i -> T.B.toLazyText (textBuilderFromInteger i) === LT.pack (show i)
+            [ testProperty "base" $ \i -> T.B.toLazyText (textBuilderFromInteger i) === LT.pack (show i)
             ]
         ]
     ]

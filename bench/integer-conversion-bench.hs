@@ -23,7 +23,7 @@ main = defaultMain
             , bgroup "proper" $ seriesT textToInteger
             ]
 
-        , bgroup "bytestring"
+        , bgroup "bs"
             [ bgroup "naive"  $ seriesB Naive.byteStringToInteger
             , bgroup "alt"    $ seriesB Alternative.byteStringToInteger
             , bgroup "proper" $ seriesB byteStringToInteger
@@ -32,21 +32,22 @@ main = defaultMain
         , bgroup "string"
             [ bgroup "naive"  $ seriesL Naive.stringToInteger
             , bgroup "alt"    $ seriesL Alternative.stringToInteger
-            , bgroup "read"   $ seriesL read
+            , bgroup "base"   $ seriesL read
             , bgroup "proper" $ seriesL stringToInteger
             ]
         ]
     , bgroup "show"
         [ bgroup "string"
             [ bgroup "naive"  $ seriesI Naive.stringFromInteger
-            , bgroup "show"   $ seriesI show
-            , bgroup "proper" $ seriesI stringFromInteger
+            , bgroup "base"   $ seriesI show
+            , bgroup "proper" $ seriesI (($ "") . showsFromInteger)
             ]
-        , bgroup "bytestring"
+        , bgroup "bs"
             [ bgroup "proper" $ seriesI (BS.B.toLazyByteString . bytestringBuilderFromInteger)
             ]
         , bgroup "text"
             [ bgroup "proper" $ seriesI (T.B.toLazyText . textBuilderFromInteger)
+            , bgroup "base"   $ seriesI (T.B.toLazyText . T.B.fromString . show)
             ]
         ]
     ]
@@ -54,7 +55,7 @@ main = defaultMain
     seriesT :: (T.Text -> Integer) -> [Benchmark]
     seriesT f =
         [ bench (show n) $ whnf f t
-        | e <- [6 .. 18 :: Int]
+        | e <- [6 .. maxBench]
         , let n = 2 ^ e
         , let t = T.replicate n "9"
         ]
@@ -62,7 +63,7 @@ main = defaultMain
     seriesB :: (BS.ByteString -> Integer) -> [Benchmark]
     seriesB f =
         [ bench (show n) $ whnf f t
-        | e <- [6 .. 18 :: Int]
+        | e <- [6 .. maxBench]
         , let n = 2 ^ e
         , let t = BS.replicate n (48 + 9)
         ]
@@ -70,7 +71,7 @@ main = defaultMain
     seriesL :: (String -> Integer) -> [Benchmark]
     seriesL f =
         [ bench (show n) $ whnf f t
-        | e <- [6 .. 18 :: Int]
+        | e <- [6 .. maxBench]
         , let n = 2 ^ e
         , let t = replicate n '9'
         ]
@@ -78,7 +79,10 @@ main = defaultMain
     seriesI :: NFData a => (Integer -> a) -> [Benchmark]
     seriesI f =
         [ bench (show n) $ nf f t
-        | e <- [6 .. 18 :: Int]
+        | e <- [6 .. maxBench]
         , let n = 2 ^ e
         , let t = read (replicate n '9') :: Integer
         ]
+
+maxBench :: Int
+maxBench = 16
